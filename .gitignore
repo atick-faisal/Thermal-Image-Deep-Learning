@@ -244,3 +244,9 @@ saved_models
 
 # experiments dir
 experiments
+
+# wandb
+wandb
+
+# checkpoints
+checkpoints
