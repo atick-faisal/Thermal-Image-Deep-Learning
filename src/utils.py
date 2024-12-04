@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Atick Faisal
+# Licensed under the MIT License - see LICENSE file for details
+
 import argparse
 from typing import Callable, Tuple
 
@@ -27,7 +30,7 @@ def get_critic(args: argparse.Namespace) -> nn.Module | None:
 
 
 def get_trainer_and_validator(args: argparse.Namespace) -> Tuple[Callable, Callable]:
-    if args.model == "unet":
+    if args.model == "unet" or args.model == "attention_unet" or args.model == "self_unet":
         from src.trainer import train_unet as trainer, validate_unet as validator
     else:
         raise ValueError(f"Invalid model name: {args.model}")

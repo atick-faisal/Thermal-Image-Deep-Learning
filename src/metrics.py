@@ -1,10 +1,12 @@
+# Copyright (c) 2024 Atick Faisal
+# Licensed under the MIT License - see LICENSE file for details
+
 from dataclasses import dataclass
 from typing import Tuple, Optional, List
 
 import numpy as np
 from numpy.typing import NDArray
-from skimage.metrics import structural_similarity as ssim
-from sklearn.metrics import mutual_info_score
+from skimage.metrics import normalized_mutual_information, structural_similarity as ssim
 
 
 @dataclass
@@ -88,8 +90,6 @@ def calculate_ssim(img1: NDArray,
         img2,
         channel_axis=channel_axis,
         data_range=1.0,
-        gaussian_weights=True,
-        use_sample_covariance=False
     ))
 
 
@@ -119,9 +119,10 @@ def calculate_psnr(img1: NDArray,
     return float(20 * np.log10(max_value) - 10 * np.log10(mse))
 
 
-def calculate_mutual_info(img1: NDArray,
-                          img2: NDArray,
-                          bins: int = 256) -> float:
+def calculate_mutual_info(
+        img1: NDArray,
+        img2: NDArray,
+) -> float:
     """
     Calculate Mutual Information between two RGB images
     using scikit-learn implementation.
@@ -129,23 +130,13 @@ def calculate_mutual_info(img1: NDArray,
     Args:
         img1: First image array
         img2: Second image array
-        bins: Number of histogram bins
 
     Returns:
         Average mutual information across RGB channels
     """
     img1, img2 = validate_inputs(img1, img2)
 
-    mi_sum = 0
-    for channel in range(3):
-        # Convert to histogram bins
-        hist1, _ = np.histogram(img1[..., channel], bins=bins, range=(0, 1))
-        hist2, _ = np.histogram(img2[..., channel], bins=bins, range=(0, 1))
-
-        # Calculate mutual information for this channel
-        mi_sum += mutual_info_score(hist1, hist2)
-
-    return float(mi_sum / 3)
+    return normalized_mutual_information(img1, img2)
 
 
 def calculate_mae(img1: NDArray, img2: NDArray) -> float:
@@ -183,14 +174,13 @@ def calculate_temp_mae(img1: NDArray, img2: NDArray) -> float:
     return float(np.mean(np.abs(img1 - img2)))
 
 
-def calculate_metrics(img1: NDArray, img2: NDArray, win_size: int = 7) -> Metrics:
+def calculate_metrics(img1: NDArray, img2: NDArray) -> Metrics:
     """
     Calculate all image comparison metrics between two RGB images.
 
     Args:
         img1: First image array
         img2: Second image array
-        win_size: Window size for SSIM calculation
 
     Returns:
         ImageMetrics object containing all calculated metrics

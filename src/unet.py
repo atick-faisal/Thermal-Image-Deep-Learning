@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Atick Faisal
+# Licensed under the MIT License - see LICENSE file for details
+
 import torch
 import torch.nn as nn
 from fastonn import SelfONN2d
@@ -69,7 +72,7 @@ class UNetRegressor(nn.Module):
         concat1 = torch.cat([enc1, up1], dim=1)
         dec1 = self.dec1(concat1)
 
-        return self.final_conv(dec1)
+        return nn.functional.tanh(self.final_conv(dec1))
 
 
 class SelfUNetRegressor(nn.Module):
@@ -211,4 +214,4 @@ class AttentionUNetRegressor(nn.Module):
         concat1 = torch.cat([enc1, up1], dim=1)
         dec1 = self.dec1(concat1)
 
-        return self.final_conv(dec1)
+        return nn.functional.tanh(self.final_conv(dec1))

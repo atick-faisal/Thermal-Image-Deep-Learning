@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Atick Faisal
+# Licensed under the MIT License - see LICENSE file for details
+
 import argparse
 import os
 
@@ -16,11 +19,11 @@ current_dir: str = os.path.dirname(os.path.abspath(__file__))
 def main() -> None:
     parser = argparse.ArgumentParser(description='UNet Regressor Training')
 
-    parser.add_argument('--model', type=str, default='attention_unet', required=True,
+    parser.add_argument('--model', type=str, default='attention_unet',
                         choices=['unet', 'attention_unet', 'self_unet'], help='regressor name')
 
     # dataset
-    parser.add_argument('--data-root', type=str, default='../data/dataset/rgb2ir',
+    parser.add_argument('--data-root', type=str, default='../data/dataset/small',
                         help='root directory for data')
     parser.add_argument('--batch-size', type=int, default=4, help='batch size for training')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train')
@@ -32,15 +35,15 @@ def main() -> None:
 
     # Loss weights
     parser.add_argument('--mse-weight', type=float, default=1.0, help='weight for MSE loss')
-    parser.add_argument('--psnr-weight', type=float, default=0.1, help='weight for PSNR loss')
+    parser.add_argument('--psnr-weight', type=float, default=0.05, help='weight for PSNR loss')
 
     # [Rest of the arguments remain the same]
     parser.add_argument('--checkpoint-dir', type=str, default='../checkpoints',
                         help='directory to save checkpoints')
-    parser.add_argument('--checkpoint-interval', type=int, default=10,
+    parser.add_argument('--checkpoint-interval', type=int, default=1,
                         help='save checkpoint every N epochs')
-    parser.add_argument('--log-interval', type=int, default=10, help='log metrics every N batches')
-    parser.add_argument('--vis-interval', type=int, default=5,
+    parser.add_argument('--log-interval', type=int, default=1, help='log metrics every N batches')
+    parser.add_argument('--vis-interval', type=int, default=1,
                         help='visualize examples every N epochs')
     parser.add_argument('--num-samples', type=int, default=4,
                         help='number of examples to visualize')
@@ -102,7 +105,7 @@ def main() -> None:
         data_root=args.data_root,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
-        # normalize=isinstance(regressor, SelfUNetRegressor)
+        normalize=True
     )
 
     best_val_psnr: float = float(0)

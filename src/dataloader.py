@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Atick Faisal
+# Licensed under the MIT License - see LICENSE file for details
+
 import os
 from pathlib import Path
 from typing import Callable, List, Tuple

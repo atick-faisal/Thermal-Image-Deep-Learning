@@ -1,3 +1,6 @@
+# Copyright (c) 2024 Atick Faisal
+# Licensed under the MIT License - see LICENSE file for details
+
 from dataclasses import dataclass
 from typing import Tuple
 
@@ -42,8 +45,8 @@ class PSNRLoss(nn.Module):
         self.max_val = self.max_val.to(output.device)
 
         # [-1, 1] -> [0, 1]
-        # output = output * 0.5 + 0.5
-        # target = target * 0.5 + 0.5
+        output = output * 0.5 + 0.5
+        target = target * 0.5 + 0.5
 
         # Calculate MSE per image
         mse = torch.mean((output - target) ** 2, dim=[1, 2, 3])
