@@ -192,6 +192,7 @@ def train_corenet(
         discriminator: nn.Module,
         train_loader: DataLoader,
         l1_criterion: nn.Module,
+        mse_criterion: nn.Module,
         psnr_criterion: nn.Module,
         optimizer_g: Optimizer,
         optimizer_d: Optimizer,
@@ -208,6 +209,7 @@ def train_corenet(
         discriminator: Critic model for adversarial training
         train_loader: Training data loader
         l1_criterion: L1 loss function
+        mse_criterion: MSE loss function
         psnr_criterion: PSNR loss function
         optimizer_g: Optimizer for the regressor
         optimizer_d: Optimizer for the critic
@@ -220,26 +222,25 @@ def train_corenet(
 
     total_losses = Losses()
     total_metrics = Metrics()
-    total_metrics.reset()
 
     pbar = tqdm(train_loader, desc=f'Train Epoch {epoch}')
-
-    max_psnr = 40.0
 
     for batch_idx, (input_images, target_images) in enumerate(pbar):
         ones = torch.ones(input_images.size(0), 1, 1, device=device)
 
         input_images, target_images = input_images.to(device), target_images.to(device)
 
-        # ... Train Regressor ...
+        # ... Train Generator ...
         optimizer_g.zero_grad()
         g_out = generator(input_images)
         d_out_generated = discriminator(g_out)
 
         loss_g_l1 = l1_criterion(d_out_generated, ones)
         loss_g_psnr = psnr_criterion(g_out, target_images)
+        loss_g_mse = mse_criterion(g_out, target_images)
 
-        total_loss_g = args.l1_weight * loss_g_l1 + args.psnr_weight * loss_g_psnr
+        total_loss_g = args.l1_weight * loss_g_l1 + args.psnr_weight * loss_g_psnr \
+                       + args.mse_weight * loss_g_mse
 
         total_loss_g.backward()
         optimizer_g.step()
@@ -253,7 +254,7 @@ def train_corenet(
 
         with torch.no_grad():
             actual_psnr = get_batched_psnr(g_out, target_images)
-            actual_psnr_normalized = (actual_psnr / max_psnr)
+            actual_psnr_normalized = (actual_psnr / args.max_psnr)
 
         loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_psnr_normalized)
 
@@ -269,6 +270,7 @@ def train_corenet(
 
         # Update running losses
         total_losses.generator_psnr_loss += loss_g_psnr.item()
+        total_losses.generator_mse_loss += loss_g_mse.item()
         total_losses.total_generator_loss += total_loss_g.item()
         total_losses.total_discriminator_loss += total_loss_d.item()
 
@@ -284,6 +286,7 @@ def train_corenet(
     # Compute averages
     avg_losses = Losses(
         generator_psnr_loss=total_losses.generator_psnr_loss / len(train_loader),
+        generator_mse_loss=total_losses.generator_mse_loss / len(train_loader),
         total_generator_loss=total_losses.total_generator_loss / len(train_loader),
         total_discriminator_loss=total_losses.total_discriminator_loss / len(train_loader)
     )
@@ -305,6 +308,7 @@ def validate_corenet(
         discriminator: nn.Module,
         val_loader: DataLoader,
         l1_criterion: nn.Module,
+        mse_criterion: nn.Module,
         psnr_criterion: nn.Module,
         device: torch.device,
         epoch: int,
@@ -319,6 +323,7 @@ def validate_corenet(
         discriminator: Critic model for adversarial training
         val_loader: Validation data loader
         l1_criterion: L1 loss function
+        mse_criterion: MSE loss function
         psnr_criterion: PSNR loss function
         device: Device to run the model on
         epoch: Current epoch number
@@ -334,8 +339,6 @@ def validate_corenet(
 
     vis_images: List[Tensor] = []
 
-    max_psnr = 40.0
-
     for batch_idx, (input_images, target_images) in enumerate(pbar):
         ones = torch.ones(input_images.size(0), 1, 1, device=device)
 
@@ -346,17 +349,18 @@ def validate_corenet(
 
         loss_g_l1 = l1_criterion(d_out_generated, ones)
         loss_g_psnr = psnr_criterion(g_out, target_images)
+        loss_g_mse = mse_criterion(g_out, target_images)
 
-        total_loss_g = args.l1_weight * loss_g_l1 + args.psnr_weight * loss_g_psnr
+        total_loss_g = args.l1_weight * loss_g_l1 + args.psnr_weight * loss_g_psnr \
+                       + args.mse_weight * loss_g_mse
 
-        # ... Train Discriminator ...
         d_out_target = discriminator(target_images)
         loss_d_target_l1 = l1_criterion(d_out_target, ones)
 
-        d_out_generated = discriminator(g_out.detach())
+        d_out_generated = discriminator(g_out)
 
         actual_psnr = get_batched_psnr(g_out, target_images)
-        actual_psnr_normalized = (actual_psnr / max_psnr)
+        actual_psnr_normalized = (actual_psnr / args.max_psnr)
 
         loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_psnr_normalized)
 
@@ -369,6 +373,7 @@ def validate_corenet(
 
         # Update running losses
         total_losses.generator_psnr_loss += loss_g_psnr.item()
+        total_losses.generator_mse_loss += loss_g_mse.item()
         total_losses.total_generator_loss += total_loss_g.item()
         total_losses.total_discriminator_loss += total_loss_d.item()
 
@@ -391,6 +396,7 @@ def validate_corenet(
     # Compute averages
     avg_losses = Losses(
         generator_psnr_loss=total_losses.generator_psnr_loss / len(val_loader),
+        generator_mse_loss=total_losses.generator_mse_loss / len(val_loader),
         total_generator_loss=total_losses.total_generator_loss / len(val_loader),
         total_discriminator_loss=total_losses.total_discriminator_loss / len(val_loader)
     )

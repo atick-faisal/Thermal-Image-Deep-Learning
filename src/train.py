@@ -27,9 +27,12 @@ def main() -> None:
     # dataset
     parser.add_argument('--data-root', type=str, default='../data/dataset/small',
                         help='root directory for data')
-    parser.add_argument('--batch-size', type=int, default=4, help='batch size for training')
+    parser.add_argument('--batch-size', type=int, default=64, help='batch size for training')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train')
-    parser.add_argument('--lr', type=float, default=0.0003, help='learning rate')
+    parser.add_argument('--lr-generator', type=float, default=0.0003,
+                        help='generator learning rate')
+    parser.add_argument('--lr-discriminator', type=float, default=0.0005,
+                        help='discriminator learning rate')
     parser.add_argument('--l1-lambda', type=float, default=1e-5, help='L1 regularization lambda')
     parser.add_argument('--l2-lambda', type=float, default=1e-4, help='L2 regularization lambda')
     parser.add_argument('--init-features', type=int, default=64,
@@ -40,18 +43,21 @@ def main() -> None:
     parser.add_argument('--psnr-weight', type=float, default=0.05, help='weight for PSNR loss')
     parser.add_argument('--l1-weight', type=float, default=1.0, help='weight for L1 loss')
 
+    # max psnr
+    parser.add_argument('--max-psnr', type=float, default=40.0, help='max psnr value')
+
     # [Rest of the arguments remain the same]
     parser.add_argument('--checkpoint-dir', type=str, default='../checkpoints',
                         help='directory to save checkpoints')
-    parser.add_argument('--checkpoint-interval', type=int, default=1,
+    parser.add_argument('--checkpoint-interval', type=int, default=10,
                         help='save checkpoint every N epochs')
     parser.add_argument('--log-interval', type=int, default=1, help='log metrics every N batches')
-    parser.add_argument('--vis-interval', type=int, default=1,
+    parser.add_argument('--vis-interval', type=int, default=10,
                         help='visualize examples every N epochs')
     parser.add_argument('--num-samples', type=int, default=4,
                         help='number of examples to visualize')
     parser.add_argument('--wandb-dir', type=str, default='../wandb', help='wandb directory')
-    parser.add_argument('--wandb-project', type=str, default='test-project',
+    parser.add_argument('--wandb-project', type=str, default='rgb2ir',
                         help='wandb project name')
     parser.add_argument('--wandb-entity', type=str, default=None, help='wandb entity name')
     parser.add_argument('--wandb-name', type=str, default=None, help='wandb run name')
@@ -95,7 +101,7 @@ def main() -> None:
 
     wandb.watch(generator)
 
-    optimizer_g = torch.optim.Adam(generator.parameters(), lr=args.lr)
+    optimizer_g = torch.optim.Adam(generator.parameters(), lr=args.lr_generator)
     optimizer_d: Optimizer | None = None
 
     scheduler_g = CosineAnnealingLR(
@@ -107,7 +113,7 @@ def main() -> None:
     scheduler_d: LRScheduler | None = None
 
     if discriminator is not None:
-        optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=args.lr * 1.3)
+        optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=args.lr_discriminator)
         scheduler_d = CosineAnnealingLR(
             optimizer_d,
             T_max=args.epochs,
@@ -137,6 +143,7 @@ def main() -> None:
             mse_criterion=mse_criterion,
             l1_criterion=l1_criterion,
             psnr_criterion=psnr_criterion,
+
             optimizer_g=optimizer_g,
             optimizer_d=optimizer_d,
             device=device,
