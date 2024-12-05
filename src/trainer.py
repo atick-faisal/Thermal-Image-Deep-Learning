@@ -342,25 +342,25 @@ def validate_corenet(
         input_images, target_images = input_images.to(device), target_images.to(device)
 
         g_out = generator(input_images)
-        # d_out_generated = discriminator(g_out)
-        #
-        # loss_g_l1 = l1_criterion(d_out_generated, ones)
-        # loss_g_psnr = psnr_criterion(g_out, target_images)
-        #
-        # total_loss_g = args.l1_weight * loss_g_l1 + args.psnr_weight * loss_g_psnr
-        #
-        # # ... Train Discriminator ...
-        # d_out_target = discriminator(target_images)
-        # loss_d_target_l1 = l1_criterion(d_out_target, ones)
-        #
-        # d_out_generated = discriminator(g_out.detach())
-        #
-        # actual_psnr = get_batched_psnr(g_out, target_images)
-        # actual_psnr_normalized = (actual_psnr / max_psnr)
-        #
-        # loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_psnr_normalized)
-        #
-        # total_loss_d = loss_d_target_l1 + loss_d_predicted_l1
+        d_out_generated = discriminator(g_out)
+
+        loss_g_l1 = l1_criterion(d_out_generated, ones)
+        loss_g_psnr = psnr_criterion(g_out, target_images)
+
+        total_loss_g = args.l1_weight * loss_g_l1 + args.psnr_weight * loss_g_psnr
+
+        # ... Train Discriminator ...
+        d_out_target = discriminator(target_images)
+        loss_d_target_l1 = l1_criterion(d_out_target, ones)
+
+        d_out_generated = discriminator(g_out.detach())
+
+        actual_psnr = get_batched_psnr(g_out, target_images)
+        actual_psnr_normalized = (actual_psnr / max_psnr)
+
+        loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_psnr_normalized)
+
+        total_loss_d = loss_d_target_l1 + loss_d_predicted_l1
 
         metrics = calculate_batch_metrics(
             g_out.cpu().numpy(),
@@ -368,9 +368,9 @@ def validate_corenet(
         )
 
         # Update running losses
-        # total_losses.generator_psnr_loss += loss_g_psnr.item()
-        # total_losses.total_generator_loss += total_loss_g.item()
-        # total_losses.total_discriminator_loss += total_loss_d.item()
+        total_losses.generator_psnr_loss += loss_g_psnr.item()
+        total_losses.total_generator_loss += total_loss_g.item()
+        total_losses.total_discriminator_loss += total_loss_d.item()
 
         # Update running metrics
         total_metrics.ssim += metrics.ssim
