@@ -5,18 +5,20 @@ from dataclasses import dataclass
 from typing import Tuple, Optional, List
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
 from skimage.metrics import normalized_mutual_information, structural_similarity as ssim
+from torch import Tensor
 
 
 @dataclass
 class Metrics:
     """Data class to store image comparison metrics"""
-    ssim: float
-    psnr: float
-    mutual_info: float
-    mae: float
-    temp_mae: float
+    ssim: float = 0.0
+    psnr: float = 0.0
+    mutual_info: float = 0.0
+    mae: float = 0.0
+    temp_mae: float = 0.0
 
     def __str__(self) -> str:
         """Pretty string representation of metrics"""
@@ -232,3 +234,38 @@ def calculate_batch_metrics(img1_batch: NDArray, img2_batch: NDArray) -> Metrics
         mae=float(np.mean([m.mae for m in metrics])),
         temp_mae=float(np.mean([m.temp_mae for m in metrics]))
     )
+
+
+def get_batched_psnr(
+        output: Tensor,
+        target: Tensor,
+):
+    """
+    Calculate the  PSNR
+    Args:
+        output: Predicted images
+        target: Ground truth images
+    Returns:
+        Negative PSNR value (scalar tensor)
+    """
+    # Ensure max_val is on the same device as the inputs
+    max_val: Tensor = torch.tensor(1.0).to(output.device)
+
+    # [-1, 1] -> [0, 1]
+    output = output * 0.5 + 0.5
+    target = target * 0.5 + 0.5
+
+    # Calculate MSE per image
+    mse = torch.mean((output - target) ** 2, dim=[1, 2, 3])
+
+    # Handle cases where mse is 0
+    zero_mask = (mse == 0)
+    mse = torch.where(zero_mask, torch.tensor(1e-8).to(mse.device), mse)
+
+    # Calculate PSNR
+    psnr = 20 * torch.log10(max_val) - 10 * torch.log10(mse)
+
+    # Set PSNR to a large value where mse was 0
+    psnr = torch.where(zero_mask, torch.tensor(100.0).to(psnr.device), psnr)
+
+    return psnr.view(-1, 1, 1)

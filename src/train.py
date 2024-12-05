@@ -7,11 +7,12 @@ import os
 import torch
 import torch.nn as nn
 import wandb
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler
 
 from dataloader import create_dataloaders
 from losses import PSNRLoss
-from src.utils import get_regressor, get_critic, get_trainer_and_validator
+from src.utils import get_generator, get_discriminator, get_trainer_and_validator
 
 current_dir: str = os.path.dirname(os.path.abspath(__file__))
 
@@ -19,8 +20,9 @@ current_dir: str = os.path.dirname(os.path.abspath(__file__))
 def main() -> None:
     parser = argparse.ArgumentParser(description='UNet Regressor Training')
 
-    parser.add_argument('--model', type=str, default='attention_unet',
-                        choices=['unet', 'attention_unet', 'self_unet'], help='regressor name')
+    parser.add_argument('--model', type=str, default='corenet',
+                        choices=['unet', 'attention_unet', 'self_unet', 'corenet'],
+                        help='regressor name')
 
     # dataset
     parser.add_argument('--data-root', type=str, default='../data/dataset/small',
@@ -36,6 +38,7 @@ def main() -> None:
     # Loss weights
     parser.add_argument('--mse-weight', type=float, default=1.0, help='weight for MSE loss')
     parser.add_argument('--psnr-weight', type=float, default=0.05, help='weight for PSNR loss')
+    parser.add_argument('--l1-weight', type=float, default=1.0, help='weight for L1 loss')
 
     # [Rest of the arguments remain the same]
     parser.add_argument('--checkpoint-dir', type=str, default='../checkpoints',
@@ -48,7 +51,7 @@ def main() -> None:
     parser.add_argument('--num-samples', type=int, default=4,
                         help='number of examples to visualize')
     parser.add_argument('--wandb-dir', type=str, default='../wandb', help='wandb directory')
-    parser.add_argument('--wandb-project', type=str, default='unet-regressor',
+    parser.add_argument('--wandb-project', type=str, default='test-project',
                         help='wandb project name')
     parser.add_argument('--wandb-entity', type=str, default=None, help='wandb entity name')
     parser.add_argument('--wandb-name', type=str, default=None, help='wandb run name')
@@ -80,26 +83,40 @@ def main() -> None:
 
     print(f"Using device: {device}")
 
-    regressor = get_regressor(args).to(device)
-    critic = get_critic(args)
+    generator = get_generator(args).to(device)
+    discriminator = get_discriminator(args)
 
-    if critic is not None:
-        critic = critic.to(device)
+    if discriminator is not None:
+        discriminator = discriminator.to(device)
 
     if args.checkpoint is not None:
         checkpoint = torch.load(args.checkpoint, map_location=device)
-        regressor.load_state_dict(checkpoint['model_state_dict'], strict=True)
+        generator.load_state_dict(checkpoint['model_state_dict'], strict=True)
 
-    wandb.watch(regressor)
+    wandb.watch(generator)
 
-    optimizer = torch.optim.Adam(regressor.parameters(), lr=args.lr)
-    scheduler = CosineAnnealingLR(
-        optimizer,
+    optimizer_g = torch.optim.Adam(generator.parameters(), lr=args.lr)
+    optimizer_d: Optimizer | None = None
+
+    scheduler_g = CosineAnnealingLR(
+        optimizer_g,
         T_max=args.epochs,
         eta_min=1e-6
     )
+
+    scheduler_d: LRScheduler | None = None
+
+    if discriminator is not None:
+        optimizer_d = torch.optim.Adam(discriminator.parameters(), lr=args.lr * 1.3)
+        scheduler_d = CosineAnnealingLR(
+            optimizer_d,
+            T_max=args.epochs,
+            eta_min=1e-6
+        )
+
     mse_criterion = nn.MSELoss()
     psnr_criterion = PSNRLoss()
+    l1_criterion = nn.L1Loss()
 
     train_loader, val_loader = create_dataloaders(
         data_root=args.data_root,
@@ -114,21 +131,24 @@ def main() -> None:
 
     for epoch in range(args.epochs):
         train_losses, train_metrics = trainer(
-            regressor=regressor,
-            critic=critic,
+            generator=generator,
+            discriminator=discriminator,
             train_loader=train_loader,
             mse_criterion=mse_criterion,
+            l1_criterion=l1_criterion,
             psnr_criterion=psnr_criterion,
-            optimizer=optimizer,
+            optimizer_g=optimizer_g,
+            optimizer_d=optimizer_d,
             device=device,
             epoch=epoch,
-            args=args
+            args=args,
         )
         val_losses, val_metrics, val_images = validator(
-            regressor=regressor,
-            critic=critic,
+            generator=generator,
+            discriminator=discriminator,
             val_loader=val_loader,
             mse_criterion=mse_criterion,
+            l1_criterion=l1_criterion,
             psnr_criterion=psnr_criterion,
             device=device,
             epoch=epoch,
@@ -137,12 +157,12 @@ def main() -> None:
 
         wandb.log({
             'epoch': epoch,
-            'train_mse_loss': train_losses.mse_loss,
-            'train_psnr_loss': train_losses.psnr_loss,
-            'train_total_loss': train_losses.total_loss,
-            'val_mse_loss': val_losses.mse_loss,
-            'val_psnr_loss': val_losses.psnr_loss,
-            'val_total_loss': val_losses.total_loss,
+            'train_mse_loss': train_losses.generator_mse_loss,
+            'train_psnr_loss': train_losses.generator_psnr_loss,
+            'train_total_loss': train_losses.total_generator_loss,
+            'val_mse_loss': val_losses.generator_mse_loss,
+            'val_psnr_loss': val_losses.generator_psnr_loss,
+            'val_total_loss': val_losses.total_generator_loss,
             'train_ssim': train_metrics.ssim,
             'train_psnr': train_metrics.psnr,
             'train_mutual_info': train_metrics.mutual_info,
@@ -163,14 +183,14 @@ def main() -> None:
                 )
             })
 
-        # Save best regressor based on total validation loss
+        # Save best generator based on total validation loss
         if val_metrics.psnr > best_val_psnr:
             best_val_psnr = val_metrics.psnr
             checkpoint_path = os.path.join(current_dir, args.checkpoint_dir, f'best_model.pth')
             torch.save({
                 'epoch': epoch,
-                'model_state_dict': regressor.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
+                'model_state_dict': generator.state_dict(),
+                'optimizer_state_dict': optimizer_g.state_dict(),
                 'train_losses': train_losses,
                 'val_losses': val_losses,
             }, checkpoint_path)
@@ -180,13 +200,16 @@ def main() -> None:
                                            f'checkpoint_epoch_{epoch}.pth')
             torch.save({
                 'epoch': epoch,
-                'model_state_dict': regressor.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
+                'model_state_dict': generator.state_dict(),
+                'optimizer_state_dict': optimizer_g.state_dict(),
                 'train_losses': train_losses,
                 'val_losses': val_losses,
             }, checkpoint_path)
 
-        scheduler.step()
+        scheduler_g.step()
+
+        if scheduler_d is not None:
+            scheduler_d.step()
 
     wandb.finish()
 

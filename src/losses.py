@@ -11,15 +11,17 @@ from torch import Tensor
 
 @dataclass
 class Losses:
-    mse_loss: float
-    psnr_loss: float
-    total_loss: float
+    generator_mse_loss: float = 0.0
+    generator_psnr_loss: float = 0.0
+    total_generator_loss: float = 0.0
+    total_discriminator_loss: float = 0.0
 
     def __str__(self):
         return (
-            f"MSE Loss: {self.mse_loss:.4f}\n"
-            f"PSNR Loss: {self.psnr_loss:.4f}\n"
-            f"Total Loss: {self.total_loss:.4f}"
+            f"G MSE Loss: {self.generator_mse_loss:.4f}\n"
+            f"G PSNR Loss: {self.generator_psnr_loss:.4f}\n"
+            f"G Total Loss: {self.total_generator_loss:.4f}"
+            f"D Total Loss: {self.total_discriminator_loss:.4f}"
         )
 
 
@@ -64,7 +66,7 @@ class PSNRLoss(nn.Module):
         return -torch.mean(psnr)  # Negative because we want to maximize PSNR
 
 
-def compute_losses(
+def compute_unet_losses(
         output: Tensor,
         target: Tensor,
         mse_criterion: nn.Module,
@@ -90,9 +92,52 @@ def compute_losses(
     total_loss = mse_weight * mse_loss + psnr_weight * psnr_loss
 
     losses = Losses(
-        mse_loss=mse_loss.item(),
-        psnr_loss=psnr_loss.item(),
-        total_loss=total_loss.item()
+        generator_mse_loss=mse_loss.item(),
+        generator_psnr_loss=psnr_loss.item(),
+        total_generator_loss=total_loss.item()
     )
 
     return total_loss, losses
+
+
+def compute_corenet_losses(
+        generated: Tensor,
+        target: Tensor,
+        ones: Tensor,
+        max_psnr: Tensor,
+        psnr_generated: Tensor,
+        psnr_target: Tensor,
+        l1_criterion: nn.Module,
+        psnr_criterion: nn.Module,
+        l1_weight: float,
+        psnr_weight: float
+) -> Tuple[Tensor, Tensor, Losses]:
+    """
+    Compute the combined loss from MSE and PSNR losses.
+
+    Args:
+        generated: Generated images
+        target: Ground truth images
+        ones: Tensor of ones for the discriminator loss
+        max_psnr: Maximum PSNR value
+        psnr_generated: Predicted PSNR for generated images
+        psnr_target: Predicted PSNR for target images
+        l1_criterion: L1 loss function
+        psnr_criterion: PSNR loss function
+        l1_weight: Weight for L1 loss
+        psnr_weight: Weight for PSNR loss
+    """
+
+
+    l1_loss_g = l1_criterion(psnr_generated, ones)
+    psnr_loss_g = psnr_criterion(generated, target)
+
+    total_generator_loss = l1_weight * l1_loss_g + psnr_weight * psnr_loss_g
+
+    l1_loss_actual = l1_criterion(psnr_target, ones)
+    l1_loss_predicted = l1_criterion(psnr_generated, psnr_target / max_psnr)
+
+
+    losses = Losses()
+
+    return total_generator_loss, total_discriminator_loss, losses

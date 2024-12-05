@@ -7,6 +7,20 @@ from fastonn import SelfONN2d
 from torch import Tensor
 
 
+class SingleConv(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, instance_norm: bool = True) -> None:
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.norm = nn.InstanceNorm2d(out_channels) if instance_norm \
+            else nn.BatchNorm2d(out_channels)
+        self.activation = nn.LeakyReLU(inplace=True)
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.conv(x)
+        x = self.norm(x)
+        x = self.activation(x)
+        return x
+
 class DoubleConv(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, instance_norm: bool = True) -> None:
         super().__init__()
