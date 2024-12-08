@@ -33,7 +33,7 @@ def get_generator(args: argparse.Namespace) -> nn.Module:
 
 def get_discriminator(args: argparse.Namespace) -> nn.Module | None:
     if args.model == "corenet":
-        return CoreNetDiscriminator()
+        return CoreNetDiscriminator(corenet_out_channels=args.corenet_out_channels)
     return None
 
 

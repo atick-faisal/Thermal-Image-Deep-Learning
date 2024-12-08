@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from losses import Losses, compute_unet_losses
 from metrics import Metrics
-from src.metrics import calculate_batch_metrics, get_batched_psnr
+from src.metrics import calculate_batch_metrics, calculate_batch_metrics_corenet
 
 
 def train_unet(
@@ -226,7 +226,7 @@ def train_corenet(
     pbar = tqdm(train_loader, desc=f'Train Epoch {epoch}')
 
     for batch_idx, (input_images, target_images) in enumerate(pbar):
-        ones = torch.ones(input_images.size(0), 1, 1, device=device)
+        ones = torch.ones(input_images.size(0), args.corenet_out_channels, 1, device=device)
 
         input_images, target_images = input_images.to(device), target_images.to(device)
 
@@ -253,10 +253,12 @@ def train_corenet(
         d_out_generated = discriminator(g_out.detach())
 
         with torch.no_grad():
-            actual_psnr = get_batched_psnr(g_out, target_images)
-            actual_psnr_normalized = (actual_psnr / args.max_psnr)
+            # actual_psnr = get_batched_psnr(g_out, target_images)
+            # actual_psnr_normalized = (actual_psnr / args.max_psnr)
+            actual_metrics = calculate_batch_metrics_corenet(g_out, target_images)
+            print(actual_metrics)
 
-        loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_psnr_normalized)
+        loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_metrics)
 
         total_loss_d = loss_d_target_l1 + loss_d_predicted_l1
 
@@ -340,7 +342,7 @@ def validate_corenet(
     vis_images: List[Tensor] = []
 
     for batch_idx, (input_images, target_images) in enumerate(pbar):
-        ones = torch.ones(input_images.size(0), 1, 1, device=device)
+        ones = torch.ones(input_images.size(0), args.corenet_out_channels, 1, device=device)
 
         input_images, target_images = input_images.to(device), target_images.to(device)
 
@@ -359,10 +361,12 @@ def validate_corenet(
 
         d_out_generated = discriminator(g_out)
 
-        actual_psnr = get_batched_psnr(g_out, target_images)
-        actual_psnr_normalized = (actual_psnr / args.max_psnr)
+        # actual_psnr = get_batched_psnr(g_out, target_images)
+        # actual_psnr_normalized = (actual_psnr / args.max_psnr)
 
-        loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_psnr_normalized)
+        actual_metrics = calculate_batch_metrics_corenet(g_out, target_images)
+
+        loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_metrics)
 
         total_loss_d = loss_d_target_l1 + loss_d_predicted_l1
 

@@ -46,6 +46,9 @@ def main() -> None:
     # max psnr
     parser.add_argument('--max-psnr', type=float, default=40.0, help='max psnr value')
 
+    # corenet out channels
+    parser.add_argument('--corenet-out-channels', type=int, default=3, help='corenet out channels')
+
     # [Rest of the arguments remain the same]
     parser.add_argument('--checkpoint-dir', type=str, default='../checkpoints',
                         help='directory to save checkpoints')

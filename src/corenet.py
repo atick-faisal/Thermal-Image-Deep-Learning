@@ -7,7 +7,7 @@ from src.networks import SingleConv
 
 
 class CoreNetDiscriminator(nn.Module):
-    def __init__(self, init_features=16):
+    def __init__(self, init_features: int = 16, corenet_out_channels: int = 1):
         super(CoreNetDiscriminator, self).__init__()
 
         self.enc1 = SingleConv(3, init_features)
@@ -25,7 +25,7 @@ class CoreNetDiscriminator(nn.Module):
             nn.Linear(init_features * 8, 64),
             nn.ReLU(),
             nn.Dropout(0.3),
-            nn.Linear(64, 1),
+            nn.Linear(64, corenet_out_channels),
             nn.ReLU()  # Final ReLU for positive PSNR values
         )
 
@@ -37,4 +37,4 @@ class CoreNetDiscriminator(nn.Module):
         x = self.global_pool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-        return x.view(-1, 1, 1)
+        return x.unsqueeze(-1)
