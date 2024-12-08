@@ -375,13 +375,13 @@ class BatchSimilarityMetrics(torch.nn.Module):
 
             # Joint histogram
             joint_hist = torch.histogramdd(
-                torch.stack([x_flat, y_flat], dim=1),
+                torch.stack([x_flat.cpu(), y_flat.cpu()], dim=1),
                 bins=self.num_bins,
                 range=[0.0, 1.0, 0.0, 1.0]
             )[0]
 
             # Calculate probabilities
-            joint_probs = joint_hist / len(x_flat)
+            joint_probs = joint_hist.to(x.device) / len(x_flat)
             p_x = joint_probs.sum(dim=1)
             p_y = joint_probs.sum(dim=0)
 

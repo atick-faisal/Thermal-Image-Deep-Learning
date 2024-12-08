@@ -256,7 +256,6 @@ def train_corenet(
             # actual_psnr = get_batched_psnr(g_out, target_images)
             # actual_psnr_normalized = (actual_psnr / args.max_psnr)
             actual_metrics = calculate_batch_metrics_corenet(g_out, target_images)
-            print(actual_metrics)
 
         loss_d_predicted_l1 = l1_criterion(d_out_generated, actual_metrics)
 
