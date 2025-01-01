@@ -2,7 +2,7 @@
 # Licensed under the MIT License - see LICENSE file for details
 
 import argparse
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 import torch
 import torch.nn as nn
@@ -415,3 +415,83 @@ def validate_corenet(
     vis_grid = make_grid(torch.cat(vis_images, dim=0), nrow=args.num_samples)
 
     return avg_losses, avg_metrics, vis_grid
+
+
+def train_pix2pix_turbo(
+        model: nn.Module,
+        train_loader: DataLoader,
+        mse_criterion: nn.Module,
+        psnr_criterion: nn.Module,
+        optimizer: Optimizer,
+        device: torch.device,
+        epoch: int,
+        args: argparse.Namespace,
+        prompt: Optional[str] = None
+) -> Tuple[Losses, Metrics]:
+    """Train Pix2PixTurbo for one epoch."""
+    model.set_train()
+    total_losses = Losses()
+    total_metrics = Metrics()
+
+    pbar = tqdm(train_loader, desc=f'Train Epoch {epoch}')
+
+    for batch_idx, (input_images, target_images) in enumerate(pbar):
+        input_images = input_images.to(device)
+        target_images = target_images.to(device)
+
+        optimizer.zero_grad()
+
+        # Forward pass
+        output = model(
+            control_image=input_images,
+            prompt=prompt or "Convert this image",
+            deterministic=True
+        )
+
+        # Calculate losses
+        total_loss, losses = compute_unet_losses(
+            output, target_images,
+            mse_criterion, psnr_criterion,
+            args.mse_weight, args.psnr_weight
+        )
+
+        # Backward pass
+        total_loss.backward()
+        optimizer.step()
+
+        # Calculate metrics
+        metrics = calculate_batch_metrics(
+            output.detach().cpu().numpy(),
+            target_images.detach().cpu().numpy()
+        )
+
+        # Update running totals
+        total_losses.generator_mse_loss += losses.generator_mse_loss
+        total_losses.generator_psnr_loss += losses.generator_psnr_loss
+        total_losses.total_generator_loss += total_loss.item()
+
+        total_metrics.ssim += metrics.ssim
+        total_metrics.psnr += metrics.psnr
+        total_metrics.mutual_info += metrics.mutual_info
+        total_metrics.mae += metrics.mae
+        total_metrics.temp_mae += metrics.temp_mae
+
+        pbar.set_postfix(metrics.__dict__)
+
+    # Calculate averages
+    n_batches = len(train_loader)
+    avg_losses = Losses(
+        generator_mse_loss=total_losses.generator_mse_loss / n_batches,
+        generator_psnr_loss=total_losses.generator_psnr_loss / n_batches,
+        total_generator_loss=total_losses.total_generator_loss / n_batches
+    )
+
+    avg_metrics = Metrics(
+        ssim=total_metrics.ssim / n_batches,
+        psnr=total_metrics.psnr / n_batches,
+        mutual_info=total_metrics.mutual_info / n_batches,
+        mae=total_metrics.mae / n_batches,
+        temp_mae=total_metrics.temp_mae / n_batches
+    )
+
+    return avg_losses, avg_metrics
