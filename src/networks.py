@@ -21,6 +21,7 @@ class SingleConv(nn.Module):
         x = self.activation(x)
         return x
 
+
 class DoubleConv(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, instance_norm: bool = True) -> None:
         super().__init__()
@@ -91,3 +92,64 @@ class SelfAttention(nn.Module):
 
         return self.gamma * out + x
 
+
+class SpatialAttention(nn.Module):
+    def __init__(self, gating_channels, feature_channels, inter_channels=None):
+        super().__init__()
+        """
+        Parameters:
+            gating_channels (int): Number of channels in the gating signal
+            feature_channels (int): Number of channels in the feature map
+            inter_channels (int): Number of intermediate channels for dimension reduction
+                                If None, will be set to feature_channels // 2
+        """
+        self.inter_channels = inter_channels or feature_channels // 2
+
+        # Query transform for gating signal
+        self.query = nn.Sequential(
+            nn.Conv2d(gating_channels, self.inter_channels,
+                      kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(self.inter_channels)
+        )
+
+        # Key transform for feature map
+        self.key = nn.Sequential(
+            nn.Conv2d(feature_channels, self.inter_channels,
+                      kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(self.inter_channels)
+        )
+
+        # Final attention map generation
+        self.attention = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.Conv2d(self.inter_channels, 1,
+                      kernel_size=1, stride=1, padding=0, bias=True),
+            nn.BatchNorm2d(1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, g, x):
+        """
+        Parameters:
+            g (torch.Tensor): Gating signal from coarser scale [B, gating_channels, H, W]
+            x (torch.Tensor): Feature map from same scale [B, feature_channels, H, W]
+
+        Returns:
+            torch.Tensor: Attended feature map [B, feature_channels, H, W]
+        """
+        batch_size = x.size(0)
+
+        # Project inputs to intermediate space
+        query = self.query(g)  # [B, inter_channels, H, W]
+        key = self.key(x)  # [B, inter_channels, H, W]
+
+        # Element-wise addition of query and key
+        energy = query + key  # [B, inter_channels, H, W]
+
+        # Generate attention map
+        attention_map = self.attention(energy)  # [B, 1, H, W]
+
+        # Apply attention
+        out = x * attention_map
+
+        return out

@@ -215,3 +215,49 @@ class AttentionUNetRegressor(nn.Module):
         dec1 = self.dec1(concat1)
 
         return nn.functional.tanh(self.final_conv(dec1))
+
+
+def export_to_onnx(model, save_path='unet.onnx', input_shape=(1, 3, 256, 256)):
+    """
+    Export PyTorch model to ONNX format
+
+    Args:
+        model: PyTorch model
+        save_path: Path to save the ONNX file
+        input_shape: Input tensor shape (batch_size, channels, height, width)
+    """
+    # Create dummy input
+    dummy_input = torch.randn(input_shape)
+
+    # Export the model
+    torch.onnx.export(
+        model,  # model being run
+        dummy_input,  # model input (or a tuple for multiple inputs)
+        save_path,  # where to save the model
+        export_params=True,  # store the trained parameter weights inside the model file
+        opset_version=11,  # the ONNX version to export the model to
+        do_constant_folding=True,  # whether to execute constant folding for optimization
+        input_names=['input'],  # the model's input names
+        output_names=['output'],  # the model's output names
+        dynamic_axes={
+            'input': {0: 'batch_size'},  # variable length axes
+            'output': {0: 'batch_size'}
+        }
+    )
+    print(f"Model exported to {save_path}")
+
+
+if __name__ == "__main__":
+    # Initialize model
+    model = UNetRegressor()
+
+    # Set model to evaluation mode
+    model.eval()
+
+    # Export model
+    export_to_onnx(model)
+
+    print("\nTo visualize the model:")
+    print("1. Install Netron: https://netron.app/")
+    print("2. Open Netron and load 'attunet.onnx'")
+    print("   - Or simply drag and drop 'attunet.onnx' into Netron")
