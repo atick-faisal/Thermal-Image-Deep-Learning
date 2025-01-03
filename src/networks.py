@@ -1,5 +1,6 @@
 # Copyright (c) 2024 Atick Faisal
 # Licensed under the MIT License - see LICENSE file for details
+from typing import Literal
 
 import torch
 import torch.nn as nn
@@ -40,6 +41,105 @@ class DoubleConv(nn.Module):
         x = self.norm(x)
         x = self.activation(x)
 
+        return x
+
+
+class DoubleConvolution(nn.Module):
+    """
+    ### Two $3 \times 3$ Convolution Layers
+
+    Each step in the contraction path and expansive path have two $3 \times 3$
+    convolutional layers followed by ReLU activations.
+
+    In the U-Net paper they used $0$ padding,
+    but we use $1$ padding so that final feature map is not cropped.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int,
+                 normalization: Literal["batch", "instance", "none"] = "batch"):
+        """
+        :param in_channels: is the number of input channels
+        :param out_channels: is the number of output channels
+        :param normalization: is the type of normalization to use
+        """
+        super().__init__()
+
+        # First $3 \times 3$ convolutional layer
+        self.first = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.act1 = nn.ReLU()
+        # Second $3 \times 3$ convolutional layer
+        self.second = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.act2 = nn.ReLU()
+        # Normalization layer
+        if normalization == "batch":
+            self.norm = nn.BatchNorm2d(out_channels)
+        elif normalization == "instance":
+            self.norm = nn.InstanceNorm2d(out_channels)
+        else:
+            self.norm = nn.Identity()
+
+    def forward(self, x: torch.Tensor):
+        # Apply the two convolution layers and activations
+        x = self.first(x)
+        x = self.norm(x)
+        x = self.act1(x)
+        x = self.second(x)
+        x = self.norm(x)
+        return self.act2(x)
+
+
+class DownSample(nn.Module):
+    """
+    ### Down-sample
+
+    Each step in the contracting path down-samples the feature map with
+    a $2 \times 2$ max pooling layer.
+    """
+
+    def __init__(self):
+        super().__init__()
+        # Max pooling layer
+        self.pool = nn.MaxPool2d(2)
+
+    def forward(self, x: torch.Tensor):
+        return self.pool(x)
+
+
+class UpSample(nn.Module):
+    """
+    ### Up-sample
+
+    Each step in the expansive path up-samples the feature map with
+    a $2 \times 2$ up-convolution.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+
+        # Up-convolution
+        self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+
+    def forward(self, x: torch.Tensor):
+        return self.up(x)
+
+
+class Concat(nn.Module):
+    """
+    ### Crop and Concatenate the feature map
+
+    At every step in the expansive path the corresponding feature map from the contracting path
+    concatenated with the current feature map.
+    """
+
+    def forward(self, x: torch.Tensor, contracting_x: torch.Tensor):
+        """
+        :param x: current feature map in the expansive path
+        :param contracting_x: corresponding feature map from the contracting path
+        """
+
+        # Concatenate the feature maps
+        x = torch.cat([x, contracting_x], dim=1)
+        #
         return x
 
 
