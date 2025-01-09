@@ -2,8 +2,9 @@
 # Licensed under the MIT License - see LICENSE file for details
 
 import torch.nn as nn
+from torchvision.models import densenet121, DenseNet121_Weights
 
-from src.networks import SingleConv
+from networks import SingleConv
 
 
 class CoreNetDiscriminator(nn.Module):
@@ -38,3 +39,55 @@ class CoreNetDiscriminator(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         return x.unsqueeze(-1)
+
+
+class DenseNetNetDiscriminator(nn.Module):
+    def __init__(self, corenet_out_channels: int = 3):
+        super(DenseNetNetDiscriminator, self).__init__()
+
+        # Load pretrained DenseNet
+        self.densenet = densenet121(weights=DenseNet121_Weights.DEFAULT)
+
+        # Get the number of features from the last layer
+        num_features = self.densenet.classifier.in_features
+
+        # Replace the classifier
+        self.densenet.classifier = nn.Sequential(
+            nn.Linear(num_features, 512),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(512, 128),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(128, corenet_out_channels),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        return self.densenet(x).unsqueeze(-1)
+
+
+class ResNetNetDiscriminator(nn.Module):
+    def __init__(self, corenet_out_channels: int = 3):
+        super(ResNetNetDiscriminator, self).__init__()
+
+        # Load pretrained DenseNet
+        self.densenet = densenet121(weights=DenseNet121_Weights.DEFAULT)
+
+        # Get the number of features from the last layer
+        num_features = self.densenet.classifier.in_features
+
+        # Replace the classifier
+        self.densenet.classifier = nn.Sequential(
+            nn.Linear(num_features, 512),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(512, 128),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(128, corenet_out_channels),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        return self.densenet(x).unsqueeze(-1)

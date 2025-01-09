@@ -13,8 +13,7 @@ from torchvision.utils import make_grid
 from tqdm import tqdm
 
 from losses import Losses, compute_unet_losses
-from metrics import Metrics
-from src.metrics import calculate_batch_metrics, calculate_batch_metrics_corenet
+from metrics import Metrics, calculate_batch_metrics, calculate_batch_metrics_corenet
 
 
 def train_unet(

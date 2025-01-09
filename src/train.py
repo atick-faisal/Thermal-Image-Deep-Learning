@@ -12,7 +12,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler
 
 from dataloader import create_dataloaders
 from losses import PSNRLoss
-from src.utils import get_generator, get_discriminator, get_trainer_and_validator
+from utils import get_generator, get_discriminator, get_trainer_and_validator
 
 current_dir: str = os.path.dirname(os.path.abspath(__file__))
 
@@ -21,17 +21,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='UNet Regressor Training')
 
     parser.add_argument('--model', type=str, default='corenet',
-                        choices=['unet', 'attention_unet', 'self_unet', 'corenet'],
+                        choices=['unet', 'attention_unet', 'self_unet', 'corenet',
+                                 'densenet_corenet',
+                                 'resnet_corenet'],
                         help='regressor name')
 
     # dataset
-    parser.add_argument('--data-root', type=str, default='../data/dataset/small',
+    parser.add_argument('--data-root', type=str, default='../data/dataset/rgb2ir',
                         help='root directory for data')
     parser.add_argument('--batch-size', type=int, default=64, help='batch size for training')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train')
-    parser.add_argument('--lr-generator', type=float, default=0.0003,
+    parser.add_argument('--lr-generator', type=float, default=0.0001,
                         help='generator learning rate')
-    parser.add_argument('--lr-discriminator', type=float, default=0.0005,
+    parser.add_argument('--lr-discriminator', type=float, default=0.0003,
                         help='discriminator learning rate')
     parser.add_argument('--l1-lambda', type=float, default=1e-5, help='L1 regularization lambda')
     parser.add_argument('--l2-lambda', type=float, default=1e-4, help='L2 regularization lambda')

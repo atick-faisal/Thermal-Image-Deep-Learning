@@ -81,7 +81,7 @@ class UNetRegressor(nn.Module):
     ## U-Net Regressor
     """
 
-    def __init__(self, in_channels: int, out_channels: int):
+    def __init__(self, in_channels: int = 3, out_channels: int = 3):
         """
         :param in_channels: number of channels in the input image
         :param out_channels: number of channels in the result feature map
@@ -514,11 +514,11 @@ class DenseNetUNet(nn.Module):
         e4 = self.encoder4(x)
 
         # Print all encoder output shapes
-        print(f"e0: {e0.shape}")
-        print(f"e1: {e1.shape}")
-        print(f"e2: {e2.shape}")
-        print(f"e3: {e3.shape}")
-        print(f"e4: {e4.shape}")
+        # print(f"e0: {e0.shape}")
+        # print(f"e1: {e1.shape}")
+        # print(f"e2: {e2.shape}")
+        # print(f"e3: {e3.shape}")
+        # print(f"e4: {e4.shape}")
 
         # Decoder
         d4 = self.decoder4[0](e4)
